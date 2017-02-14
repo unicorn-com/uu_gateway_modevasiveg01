@@ -1,7 +1,7 @@
 mod_evasive
 ===========
 
-Fork of mod_evasive for Apache 2.4. Original module by Deep Logic, Inc
+Fork of mod_evasive for Apache 2.x. Original module by Deep Logic, Inc
 
 WHAT IS MOD_EVASIVE ?
 
@@ -30,15 +30,9 @@ legitimate requests are rarely ever compromised, only legitimate attacks.  Even
 a user repeatedly clicking on 'reload' should not be affected unless they do
 it maliciously.
 
-Three different module sources have been provided:
+One module is provided in this forked version:
 
-Apache v1.3 API:	mod_evasive.c
-Apache v2.0 API:	mod_evasive20.c
-Apache v2.4 API:	mod_evasive24.c
-NSAPI (iPlanet):	mod_evasiveNSAPI.c *
-
-NOTE: mod_evasiveNSAPI is a port submitted by Reine Persson <reiper@rsv.se>
-      and is not officially supported as part of the mod_evasive project.
+Apache v2.x API:	mod_evasive2.c
 
 HOW IT WORKS
 
@@ -90,66 +84,19 @@ will most likely still take you offline.
 
 HOW TO INSTALL
 
-APACHE v1.3
------------
-
-Without DSO Support:
-
-1. Extract this archive into src/modules in the Apache source tree
-
-2. Run ./configure --add-module=src/modules/evasive/mod_evasive.c
-
-3. make, install
-
-4. Restart Apache
-
-With DSO Support, Ensim, or CPanel:
-
-1. $APACHE_ROOT/bin/apxs -iac mod_evasive.c
-
-2. Restart Apache
-
-APACHE v2.0
+APACHE v2.x
 -----------
 
 1. Extract this archive
 
-2. Run $APACHE_ROOT/bin/apxs -i -a -c mod_evasive20.c
+2. Run $APACHE_ROOT/bin/apxs -i -a -c mod_evasive2.c
 
 3. The module will be built and installed into $APACHE_ROOT/modules, and loaded into your httpd.conf
 
 4. Restart Apache
 
-APACHE v2.4
+CONFIGURATION APACHE v2.x
 -----------
-
-1. Extract this archive
-
-2. Run $APACHE_ROOT/bin/apxs -i -a -c mod_evasive24.c
-
-3. The module will be built and installed into $APACHE_ROOT/modules, and loaded into your httpd.conf
-
-4. Restart Apache
-
-NSAPI
-SunONE (iPlanet,netscape) Installation
---------------------------------------
-
-Tested on:
-iPlanet 4.1sp12
-iPlanet 6.0sp5
-
-Edit compile script for your environment and compile mod_evasiveNSAPI.c
-to a shared library.
-
-CONFIGURATION
-
-mod_evasive has default options configured, but you may also add the
-following block to your httpd.conf:
-
-APACHE v1.3
------------
-
 <IfModule mod_evasive.c>
     DOSHashTableSize    3097
     DOSPageCount        2
@@ -159,94 +106,15 @@ APACHE v1.3
     DOSBlockingPeriod   10
 </IfModule>
 
-APACHE v2.0
------------
-<IfModule mod_evasive20.c>
-    DOSHashTableSize    3097
-    DOSPageCount        2
-    DOSSiteCount        50
-    DOSPageInterval     1
-    DOSSiteInterval     1
-    DOSBlockingPeriod   10
-</IfModule>
-
-APACHE v2.4
------------
-<IfModule mod_evasive24.c>
-    DOSHashTableSize    3097
-    DOSPageCount        2
-    DOSSiteCount        50
-    DOSPageInterval     1
-    DOSSiteInterval     1
-    DOSBlockingPeriod   10
-</IfModule>
-
-Optionally you can also add the following directives:
-
-    DOSEmailNotify	you@yourdomain.com
-    DOSSystemCommand	"su - someuser -c '/sbin/... %s ...'"
-    DOSLogDir		"/var/lock/mod_evasive"
 
 You will also need to add this line if you are building with dynamic support:
 
-APACHE v1.3
------------
-
-AddModule	mod_evasive.c
-
-APACHE v2.0
------------
-
-LoadModule evasive20_module modules/mod_evasive20.so
-
-(This line is already added to your configuration by apxs)
-
 APACHE v2.4
 -----------
 
-LoadModule evasive24_module modules/mod_evasive24.so
+LoadModule evasive_module modules/mod_evasive.so
 
 (This line is already added to your configuration by apxs)
-
-NSAPI
-SunONE (iPlanet,Netscape) Configuration
---------------------------------------
-
-Configure iPlanet 4.1
----------------------
-
-Edit obj.conf:
-
-Init fn="load-modules" funcs="mod_evasive_init,mod_evasive_check" shlib="/opt/ns-4.1/plugins/lib/mod_evasive.sl"
-
-Init fn="mod_evasive_init" DOSPageCount=2 DOSSiteCount=50 DOSPageInterval=1 DOSSiteInterval=1 DOSBlockingPeriod=10 DOSWhitelist="10.60.0.7,10.65.0.10"
-
-In the default object:
-PathCheck fn=mod_evasive_check
-
-Or an own object
-<Object name="evasive" ppath="/DoSProtectedArea*">
-NameTrans fn=mod_evasive_check
-</Object>
-
-
-Configure iPlanet 6.0
----------------------
-
-Edit magnus.conf:
-
-Init fn="load-modules" funcs="mod_evasive_init,mod_evasive_check" shlib="/opt/iplanet-6.0/plugins/lib/mod_evasive.sl"
-
-Init fn="mod_evasive_init" DOSWhitelist="10.60.0.7,10.65.0.10"
-
-Edit obj.conf:
-In the default object:
-PathCheck fn=mod_evasive_check
-
-Or an own object
-<Object name="evasive" ppath="/DoSProtectedArea*">
-NameTrans fn=mod_evasive_check
-</Object>
 
 DOSHashTableSize
 ----------------
@@ -301,8 +169,8 @@ If this value is set, an email will be sent to the address specified
 whenever an IP address becomes blacklisted.  A locking mechanism using /tmp
 prevents continuous emails from being sent.
 
-NOTE: Be sure MAILER is set correctly in mod_evasive.c
-      (or mod_evasive20.c).  The default is "/bin/mail -t %s" where %s is
+NOTE: Be sure MAILER is set correctly in mod_evasive.c.
+      The default is "/bin/mail -t %s" where %s is
       used to denote the destination email address set in the configuration.
       If you are running on linux or some other operating system with a
       different type of mailer, you'll need to change this.

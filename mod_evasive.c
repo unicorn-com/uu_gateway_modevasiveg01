@@ -21,6 +21,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 #include <sys/types.h>
+#include <unistd.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <netinet/in.h>
@@ -38,7 +39,17 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "http_log.h"
 #include "http_request.h"
 
-module AP_MODULE_DECLARE_DATA evasive20_module;
+module AP_MODULE_DECLARE_DATA evasive_module;
+
+pid_t getpid(void);
+pid_t getppid(void);
+
+/* Apache version < 2.4 compat */
+#if HTTP_VERSION(AP_SERVER_MAJORVERSION_NUMBER, AP_SERVER_MINORVERSION_NUMBER) < 2004 
+    /* r->useragent_ip is more accurate in this case in Apache 2.4 */
+    #define useragent_ip connection->remote_ip
+#endif /* Apache version < 2.4 compat */
+
 
 /* BEGIN DoS Evasive Maneuvers Definitions */
 
@@ -139,60 +150,64 @@ static int access_checker(request_rec *r)
       time_t t = time(NULL);
 
       /* Check whitelist */
-      if (is_whitelisted(r->connection->remote_ip)) 
+      if (is_whitelisted(r->useragent_ip))
         return OK;
 
       /* First see if the IP itself is on "hold" */
-      n = ntt_find(hit_list, r->connection->remote_ip);
+      n = ntt_find(hit_list, r->useragent_ip);
 
       if (n != NULL && t-n->timestamp<blocking_period) {
  
         /* If the IP is on "hold", make it wait longer in 403 land */
         ret = HTTP_FORBIDDEN;
-        n->timestamp = time(NULL);
+        n->timestamp = t;
 
       /* Not on hold, check hit stats */
       } else {
 
         /* Has URI been hit too much? */
-        snprintf(hash_key, 2048, "%s_%s", r->connection->remote_ip, r->uri);
+        snprintf(hash_key, 2048, "%s_%s", r->useragent_ip, r->uri);
         n = ntt_find(hit_list, hash_key);
         if (n != NULL) {
 
           /* If URI is being hit too much, add to "hold" list and 403 */
           if (t-n->timestamp<page_interval && n->count>=page_count) {
             ret = HTTP_FORBIDDEN;
-            ntt_insert(hit_list, r->connection->remote_ip, time(NULL));
+            ntt_insert(hit_list, r->useragent_ip, time(NULL));
           } else {
 
             /* Reset our hit count list as necessary */
             if (t-n->timestamp>=page_interval) {
               n->count=0;
+              n->timestamp=t;
             }
           }
-          n->timestamp = t;
+          /* don't update ts, as 20 requests each 3 sec apart
+           * becomes equivalent to 20 requests in 3 seconds */
           n->count++;
         } else {
           ntt_insert(hit_list, hash_key, t);
         }
 
         /* Has site been hit too much? */
-        snprintf(hash_key, 2048, "%s_SITE", r->connection->remote_ip);
+        snprintf(hash_key, 2048, "%s_SITE", r->useragent_ip);
         n = ntt_find(hit_list, hash_key);
         if (n != NULL) {
 
           /* If site is being hit too much, add to "hold" list and 403 */
           if (t-n->timestamp<site_interval && n->count>=site_count) {
             ret = HTTP_FORBIDDEN;
-            ntt_insert(hit_list, r->connection->remote_ip, time(NULL));
+            ntt_insert(hit_list, r->useragent_ip, time(NULL));
           } else {
 
             /* Reset our hit count list as necessary */
             if (t-n->timestamp>=site_interval) {
               n->count=0;
+              n->timestamp=t;
             }
           }
-          n->timestamp = t;
+          /* don't update ts, as 20 requests each 3 seconds apart 
+           * is the same as 20 req in 3 seconds */
           n->count++;
         } else {
           ntt_insert(hit_list, hash_key, t);
@@ -205,27 +220,27 @@ static int access_checker(request_rec *r)
         struct stat s;
         FILE *file;
 
-        snprintf(filename, sizeof(filename), "%s/dos-%s", log_dir != NULL ? log_dir : DEFAULT_LOG_DIR, r->connection->remote_ip);
+        snprintf(filename, sizeof(filename), "%s/dos-%s", log_dir != NULL ? log_dir : DEFAULT_LOG_DIR, r->useragent_ip);
         if (stat(filename, &s)) {
           file = fopen(filename, "w");
           if (file != NULL) {
-            fprintf(file, "%ld\n", getpid());
+            fprintf(file, "%d\n", getpid());
             fclose(file);
 
-            LOG(LOG_ALERT, "Blacklisting address %s: possible DoS attack.", r->connection->remote_ip);
+            LOG(LOG_ALERT, "Blacklisting address %s: possible DoS attack.", r->useragent_ip);
             if (email_notify != NULL) {
               snprintf(filename, sizeof(filename), MAILER, email_notify);
               file = popen(filename, "w");
               if (file != NULL) {
                 fprintf(file, "To: %s\n", email_notify);
-                fprintf(file, "Subject: HTTP BLACKLIST %s\n\n", r->connection->remote_ip);
-                fprintf(file, "mod_evasive HTTP Blacklisted %s\n", r->connection->remote_ip);
+                fprintf(file, "Subject: HTTP BLACKLIST %s\n\n", r->useragent_ip);
+                fprintf(file, "mod_evasive HTTP Blacklisted %s\n", r->useragent_ip);
                 pclose(file);
               }
             }
 
             if (system_command != NULL) {
-              snprintf(filename, sizeof(filename), system_command, r->connection->remote_ip);
+              snprintf(filename, sizeof(filename), system_command, r->useragent_ip);
               system(filename);
             }
  
@@ -686,7 +701,7 @@ static void register_hooks(apr_pool_t *p) {
   apr_pool_cleanup_register(p, NULL, apr_pool_cleanup_null, destroy_hit_list);
 };
 
-module AP_MODULE_DECLARE_DATA evasive20_module =
+module AP_MODULE_DECLARE_DATA evasive_module =
 {
     STANDARD20_MODULE_STUFF,
     NULL,
