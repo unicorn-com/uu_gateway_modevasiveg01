@@ -117,7 +117,8 @@ typically /etc/fail2ban/filter.d.
 Activate the jail by adding the following to jail.conf:
 
 
->[evasive]
+```
+[evasive]
 enabled = true
 filter = apache-modevasive
 action = iptables-multiport[name=evasive, port="http,https", proto=tcp]
@@ -126,6 +127,7 @@ maxretry = 1
 findtime = 120
 bantime = 120
 ignoreip = 127.0.0.1
+```
 
 Then reload fail2ban: `fail2ban-client reload`. It's also recommended to
 activate recidive support to ban long-term abusers.
