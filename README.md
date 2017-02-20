@@ -82,7 +82,53 @@ your total bandwidth or server capacity for sending 403's.  Without a solid
 infrastructure and address filtering tool in place, a heavy distributed DoS
 will most likely still take you offline.
 
+
+CHANGES OVER STOCK
+------------------
+Apache 2.4 and 2.0 modules are consolidated to 1 module, mod_evasive. Prior 
+to this change modules were referenced as mod_evasive20 and mod_evasive24. 
+Second, the activation threshold has changed from a cooldown rate to absolute
+frequency. In the original mod_evasive release, DOS[Page,Site]Interval set the expiry
+rate between requests. So long as another request happened before DOS[Page,Site]Interval
+expired, it would be possible to increment the bean counter. For polling apps,
+this is disastrous. An app that polled once a second for 10 seconds is just as guilty
+as a client polling 10 times in 1 second. This altered release takes the remote client, 
+sets the timestamp, then blocks if [page,site] count exceeds DOS[Page,Site]Count within 
+DOS[Page,Site]Interval seconds.
+
+A simple fail2ban recipe is bundled with this release to transform short-term
+403 responses into long-term iptables blocking. Use with care, but works well for
+brute-force deterrents.
+
 HOW TO INSTALL
+
+FAIL2BAN
+--------
+fail2ban provides an agent to watch for abusive clients that trigger the
+mod_evasive threshold and temporarily block via iptables instead of
+sending a 403 response. With recidive jail support, repeat offenders can be
+permanently blocked thus reducing wasted CPU clock cycles.
+
+FAIL2BAN INSTALLATION
+---------------------
+Copy the optional apache-modevasive.conf to fail2ban filter storage, 
+typically /etc/fail2ban/filter.d.
+
+Activate the jail by adding the following to jail.conf:
+
+
+>[evasive]
+enabled = true
+filter = apache-modevasive
+action = iptables-multiport[name=evasive, port="http,https", proto=tcp]
+logpath = %(syslog_daemon)s
+maxretry = 1
+findtime = 120
+bantime = 120
+ignoreip = 127.0.0.1
+
+Then reload fail2ban: `fail2ban-client reload`. It's also recommended to
+activate recidive support to ban long-term abusers.
 
 APACHE v2.x
 -----------
@@ -195,8 +241,8 @@ security issues if your system is open to shell users.
   	http://security.lss.hr/index.php?page=details&ID=LSS-2005-01-01
 
 In the event you have nonprivileged shell users, you'll want to create a
-directory writable only to the user Apache is running as (usually root),
-then set this in your httpd.conf.
+directory writable only to the user Apache is running as (usually apache, 
+see "User" directive in httpd.conf) then set this in your httpd.conf.
 
 WHITELISTING IP ADDRESSES
 
@@ -258,3 +304,6 @@ FEEDBACK
 Please feel free to fork and fix issues or open new ones.
 
 Original author: jonathan@nuclearelephant.com
+Modified package: matt@apisnetworks.com
+
+
