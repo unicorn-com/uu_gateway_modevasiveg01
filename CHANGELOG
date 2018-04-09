@@ -1,3 +1,8 @@
+Version 2.0
+--------------
+[20180408] msaladna: Incorporate fail2ban sieve
+
+[20180408] msaladna: Simplify module build between 1.x/2.x
 
 Version 1.10.1
 --------------
