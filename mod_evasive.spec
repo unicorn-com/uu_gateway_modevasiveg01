@@ -1,5 +1,5 @@
 # apxs script location
-%{!?_httpd_apxs: %global _httpd_apxs %{_sbindir}/apxs}
+%{!?_httpd_apxs: %global _httpd_apxs %{_bindir}/apxs}
 
 # Module Magic Number
 %{!?_httpd_mmn: %global _httpd_mmn %(cat %{_includedir}/httpd/.mmn 2>/dev/null || echo missing-httpd-devel)}
