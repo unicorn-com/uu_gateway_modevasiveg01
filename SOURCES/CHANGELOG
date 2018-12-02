@@ -1,3 +1,15 @@
+Version 2.1
+--------------
+[20181202] msaladna: Merge custom HTTP status, per-virtualhost patch from jvdmr/mod_evasive
+
+[20181202] msaladna: Improve bot penetration tracking with global hash table per process instead of per server rec
+
+[20181202] msaladna: Shorten hash markers
+
+[20181202] msaladna: Invert whitelist class resolution D -> C -> B -> A
+
+[20181202] msaladna: Send "no-cache" header when blocked
+
 Version 2.0
 --------------
 [20180408] msaladna: Incorporate fail2ban sieve

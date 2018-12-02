@@ -6,21 +6,25 @@
 
 # Configuration directory
 %{!?_httpd_confdir: %global _httpd_confdir %{_sysconfdir}/httpd/conf.d}
+%{!?_httpd_moddir: %global _httpd_moddir %{_libdir}/httpd/modules}
 %{!?_fail2ban_confdir: %global _fail2ban_confdir %{_sysconfdir}/fail2ban/filter.d}
 
 %global httpd24 1
 %global rundir /run
 
 Name:		mod_evasive
-Version:	2.0
+Version:	2.1
 Release:	0%{?dist}
 Summary:	Realtime blacklist module for Apache 2
 Group:		System Environment/Daemons
 License:	GPL 2.0
 URL:		https://github.com/apisnetworks/mod_evasive
-Source0:	https://github.com/apisnetworks/mod_evasive/archive/%{name}-%{version}.tar.gz
+Source0:  mod_evasive.c
 Source1:	evasive.conf
-Source2:        apache-modevasive.conf
+Source2:  apache-modevasive.conf
+Source3:  README.md
+Source4:  LICENSE
+Source5:  CHANGELOG
 BuildRoot:	%{_tmppath}/%{name}-%{version}-%{release}-root-%(id -nu)
 BuildRequires:	httpd-devel >= 2.4, pkgconfig, fail2ban
 Requires:	httpd-mmn = %{_httpd_mmn}
@@ -32,12 +36,15 @@ It is also designed to be a detection tool, and can be easily configured to
 talk to ipchains, firewalls, routers, and etcetera.
 
 %prep
-%setup -q -n %{name}-%{version}
+cp -p %{SOURCE0} mod_evasive.c
 cp -p %{SOURCE1} evasive.conf
 cp -p %{SOURCE2} apache-modevasive.conf
+cp -p %{SOURCE3} README.md
+cp -p %{SOURCE4} LICENSE
+cp -p %{SOURCE5} CHANGELOG
 
 %build
-%{_httpd_apxs} -c -Wc,"%{optflags} -Wall -pedantic -std=c99" -lpam mod_evasive.c
+%{_httpd_apxs} -c -Wc,"%{optflags} -Wall -pedantic -std=c99" mod_evasive.c
 
 %install
 rm -rf $RPM_BUILD_ROOT
@@ -56,5 +63,12 @@ rm -rf %{buildroot}
 %{_httpd_moddir}/*.so
 
 %changelog
+* Sun Dec 02 2018 Matt Saladna <matt@apisnetworks.com> - 2.1-0
+- Merge custom HTTP status, per-virtualhost patch from jvdmr/mod_evasive
+- Improve bot penetration tracking with global hash table per process instead of per server rec
+- Shorten hash markers
+- Invert whitelist class resolution D -> C -> B -> A
+- Send no-cache header when blocked
+
 * Sun Apr 08 2018 Matt Saladna <matt@apisnetworks.com> - 2.0-0
 - Initial release
