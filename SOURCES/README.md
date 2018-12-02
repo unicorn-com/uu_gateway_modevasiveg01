@@ -1,7 +1,7 @@
 mod_evasive
 ===========
 
-Fork of mod_evasive for Apache 2.x. Original module by Deep Logic, Inc
+Fork of mod_evasive for Apache 2.x. Original module by Deep Logic, Inc.
 
 ## WHAT IS MOD_EVASIVE ?
 
@@ -130,10 +130,21 @@ activate recidive support to ban long-term abusers.
 
 ### APACHE v2.x
 
-1. Extract this archive
-2. Run $APACHE_ROOT/bin/apxs -i -a -c mod_evasive2.c
-3. The module will be built and installed into $APACHE_ROOT/modules, and loaded into your httpd.conf
-4. Restart Apache
+```bash
+git clone https://github.com/apisnetworks/mod_evasive.git
+cd mod_evasive/SOURCES
+cp evasive.conf /etc/httpd/conf.d/evasive.conf
+apxs -i -a -c mod_evasive.c
+systemctl restart httpd
+```
+
+To build an RPM:
+```bash
+git clone https://github.com/apisnetworks/mod_evasive.git
+cd mod_evasive
+sh build.sh
+rpm -Uhv RPMS/x86_64/*.rpm
+systemctl restart httpd
 
 #### CONFIGURATION APACHE v2.x
 
@@ -143,7 +154,7 @@ In `/etc/httpd/conf.d/evasive.conf`,
 LoadModule evasive_module modules/mod_evasive.so
 
 <IfModule mod_evasive.c>
-	DOSHttpStatus 429
+    DOSHttpStatus 429
     DOSHashTableSize    3097
     DOSPageCount        2
     DOSSiteCount        50
@@ -153,7 +164,7 @@ LoadModule evasive_module modules/mod_evasive.so
 </IfModule>
 ```
 
-evasive can be used configured per-directory and per-virtualhost
+evasive can be used configured per-directory, per-virtualhost, and per-location
 ```
 <Directory /var/www/html>
 	DOSEnabled off
@@ -166,15 +177,22 @@ evasive can be used configured per-directory and per-virtualhost
 </Directory>
 
 <VirtualHost _default_>
-	# Disable dos-IP.ADDR files
-	DOSLogDir /dev/null
+	# Disable dos-IP.ADDR files. 
+	# Must be owned by web user (ususally "apache")
+	DOSLogDir /home/mydomain/statuses
 </VirtualHost>
+
+# Discourse serves individual emojis, prevent triggering
+<Location /images/emoji>
+	DOSEnabled off
+</Location>
 ```
 
 ### mod_evasive Directives
 
 #### DOSEnabled
 **Context**: server config, virtualhost, directory
+
 Enable or disable evasive support. By default evasive is on. Use `off` to disable. 
 Can be overridden by a virtualhost or directory.
 
@@ -228,13 +246,13 @@ period; in the event of a DoS attack, this timer will keep getting reset.
 **Context:** server config, virtualhost, directory
 
 If this value is set, an email will be sent to the address specified
-whenever an IP address becomes blacklisted.  A locking mechanism using `DOSLogDir` (default: /tmp) prevents continuous emails from being sent. See warning below.
+whenever an IP address becomes blacklisted.  A locking mechanism using `DOSLogDir` 
+(default: /tmp) prevents continuous emails from being sent. See warning below.
 
 *NOTE: Be sure MAILER is set correctly in mod_evasive.c.*
--      The default is "/bin/mail -t %s" where %s is
--      used to denote the destination email address set in the configuration.
--	If you are running on linux or some other operating system with a
--	different type of mailer, you'll need to change this.
+The default is "/bin/mail -t %s" where %s is used to denote the destination 
+email address set in the configuration. If you are running on linux or some 
+other operating system with a different type of mailer, you'll need to change this.
 
 #### DOSLogDir
 **Context:** server config, virtualhost, directory
@@ -329,6 +347,7 @@ Please don't use this script to DoS others without their permission.
 Please feel free to fork and fix issues or open new ones.
 
 Original author ([jzdziarski/mod_evasive](https://github.com/jzdziarski/mod_evasive)): jonathan@nuclearelephant.com
+
 Modified package ([apisnetworks/mod_evasive](https://github.com/apisnetworks/mod_evasive)): matt@apisnetworks.com
 
 
