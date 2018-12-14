@@ -3,17 +3,17 @@ mod_evasive for Apache 2
 Copyright (c) by Jonathan A. Zdziarski
 
 LICENSE
-																																								
+
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
 as published by the Free Software Foundation; either version 2
 of the License, or (at your option) any later version.
-																																								
+
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
-																																								
+
 You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
@@ -41,11 +41,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 module AP_MODULE_DECLARE_DATA evasive_module;
 
-pid_t getpid(void);
-pid_t getppid(void);
-
 /* Apache version < 2.4 compat */
-#if HTTP_VERSION(AP_SERVER_MAJORVERSION_NUMBER, AP_SERVER_MINORVERSION_NUMBER) < 2004 
+#if HTTP_VERSION(AP_SERVER_MAJORVERSION_NUMBER, AP_SERVER_MINORVERSION_NUMBER) < 2004
 	/* r->useragent_ip is more accurate in this case in Apache 2.4 */
 	#define useragent_ip connection->remote_ip
 #endif /* Apache version < 2.4 compat */
@@ -97,7 +94,7 @@ static int ntt_destroy(struct ntt *ntt);
 static struct ntt_node	*ntt_find(struct ntt *ntt, const char *key);
 static struct ntt_node	*ntt_insert(struct ntt *ntt, const char *key, time_t timestamp);
 static int ntt_delete(struct ntt *ntt, const char *key);
-static long ntt_hashcode(struct ntt *ntt, const char *key);	
+static long ntt_hashcode(struct ntt *ntt, const char *key);
 static struct ntt_node *c_ntt_first(struct ntt *ntt, struct ntt_c *c);
 static struct ntt_node *c_ntt_next(struct ntt *ntt, struct ntt_c *c);
 
@@ -127,13 +124,13 @@ static const char *whitelist(cmd_parms *cmd, void *dconfig, const char *ip);
 static int is_whitelisted(const char *ip, evasive_config *cfg);
 
 /* END DoS Evasive Maneuvers Globals */
-static void * create_hit_list() 
+static void * create_hit_list()
 {
 	hit_list = ntt_create(hash_table_size);
 	return 0;
 }
 
-static void * create_dir_conf(apr_pool_t *p, char *context) 
+static void * create_dir_conf(apr_pool_t *p, char *context)
 {
 	context = context ? context : "(undefined context)";
 	/* Create a new hit list for this listener */
@@ -165,7 +162,7 @@ static const char *whitelist(cmd_parms *cmd, void *dconfig, const char *ip)
 }
 
 
-static int access_checker(request_rec *r) 
+static int access_checker(request_rec *r)
 {
 	int ret = OK;
 
@@ -234,7 +231,7 @@ static int access_checker(request_rec *r)
 						n->timestamp=t;
 					}
 				}
-				/* don't update ts, as 20 requests each 3 seconds apart 
+				/* don't update ts, as 20 requests each 3 seconds apart
 				 * is the same as 20 req in 3 seconds */
 				n->count++;
 			} else {
@@ -247,7 +244,7 @@ static int access_checker(request_rec *r)
 			char filename[1024];
 			struct stat s;
 			FILE *file;
-			
+
 			apr_table_setn(r->err_headers_out, "Cache-Control", "no-cache");
 
 			snprintf(filename, sizeof(filename), "%s/dos-%s", cfg->log_dir != NULL ? cfg->log_dir : DEFAULT_LOG_DIR, r->useragent_ip);
@@ -310,7 +307,7 @@ static int is_whitelisted(const char *ip, evasive_config *cfg) {
 
 	oct = strtok(dip, ".");
 	while(oct != NULL && i<4) {
-		if (strlen(oct)<=3) 
+		if (strlen(oct)<=3)
 			strcpy(octet[i], oct);
 		i++;
 		oct = strtok(NULL, ".");
@@ -318,19 +315,19 @@ static int is_whitelisted(const char *ip, evasive_config *cfg) {
 	free(dip);
 
 	/* Exact Match */
-	snprintf(hashkey, sizeof(hashkey), "W_%s", ip); 
+	snprintf(hashkey, sizeof(hashkey), "W_%s", ip);
 	if (ntt_find(hit_list, hashkey)!=NULL)
 		return 1;
 
-	/* IPv4 Wildcards */ 
+	/* IPv4 Wildcards */
 	snprintf(hashkey, sizeof(hashkey), "W_%s.%s.%s.*", octet[0], octet[1], octet[2]);
 	if (ntt_find(hit_list, hashkey)!=NULL)
 		return 1;
-	
+
 	snprintf(hashkey, sizeof(hashkey), "W_%s.%s.*.*", octet[0], octet[1]);
 	if (ntt_find(hit_list, hashkey)!=NULL)
 		return 1;
-	
+
 	snprintf(hashkey, sizeof(hashkey), "W_%s.*.*.*", octet[0]);
 	if (ntt_find(hit_list, hashkey)!=NULL)
 		return 1;
@@ -342,16 +339,19 @@ static int is_whitelisted(const char *ip, evasive_config *cfg) {
 static apr_status_t destroy_config(void *dconfig) {
 	evasive_config *cfg = (evasive_config *) dconfig;
 	ntt_destroy(hit_list);
+	if (!cfg) {
+		return APR_SUCCESS;
+	}
 	free(cfg->email_notify);
 	free(cfg->log_dir);
 	free(cfg->system_command);
 	free(cfg);
-	return APR_SUCCESS;	
+	return APR_SUCCESS;
 }
 
 /* BEGIN NTT (Named Timestamp Tree) Functions */
 
-static unsigned long ntt_prime_list[ntt_num_primes] = 
+static unsigned long ntt_prime_list[ntt_num_primes] =
 {
 	53ul,         97ul,         193ul,       389ul,       769ul,
 	1543ul,       3079ul,       6151ul,      12289ul,     24593ul,
@@ -444,7 +444,7 @@ static struct ntt_node *ntt_insert(struct ntt *ntt, const char *key, time_t time
 	node = ntt->tbl[hash_code];
 
 	while (node != NULL) {
-		if (strcmp(key, node->key) == 0) { 
+		if (strcmp(key, node->key) == 0) {
 			new_node = node;
 			node = NULL;
 		}
@@ -458,7 +458,7 @@ static struct ntt_node *ntt_insert(struct ntt *ntt, const char *key, time_t time
 	if (new_node != NULL) {
 		new_node->timestamp = timestamp;
 		new_node->count = 0;
-		return new_node; 
+		return new_node;
 	}
 
 	/* Create a new node */

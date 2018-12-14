@@ -14,13 +14,13 @@
 
 Name:		mod_evasive
 Version:	2.1
-Release:	0%{?dist}
+Release:	1%{?dist}
 Summary:	Realtime blacklist module for Apache 2
 Group:		System Environment/Daemons
 License:	GPL 2.0
 URL:		https://github.com/apisnetworks/mod_evasive
 Source0:  mod_evasive.c
-Source1:	evasive.conf
+Source1:  evasive.conf
 Source2:  apache-modevasive.conf
 Source3:  README.md
 Source4:  LICENSE
@@ -63,6 +63,9 @@ rm -rf %{buildroot}
 %{_httpd_moddir}/*.so
 
 %changelog
+* Fri Dec 14 2018 Matt Saladna <matt@apisnetworks.com> - 2.1-1
+- ISE on exec()
+
 * Sun Dec 02 2018 Matt Saladna <matt@apisnetworks.com> - 2.1-0
 - Merge custom HTTP status, per-virtualhost patch from jvdmr/mod_evasive
 - Improve bot penetration tracking with global hash table per process instead of per server rec
