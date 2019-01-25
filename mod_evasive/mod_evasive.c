@@ -38,6 +38,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "http_config.h"
 #include "http_log.h"
 #include "http_request.h"
+#include "http_main.h"
 
 module AP_MODULE_DECLARE_DATA evasive_module;
 
@@ -47,6 +48,9 @@ module AP_MODULE_DECLARE_DATA evasive_module;
 	#define useragent_ip connection->remote_ip
 #endif /* Apache version < 2.4 compat */
 
+#ifdef APLOG_USE_MODULE
+  APLOG_USE_MODULE(evasive);
+#endif
 
 /* BEGIN DoS Evasive Maneuvers Definitions */
 
@@ -60,7 +64,7 @@ module AP_MODULE_DECLARE_DATA evasive_module;
 #define DEFAULT_SITE_INTERVAL   1       // Default 1 Second site interval
 #define DEFAULT_BLOCKING_PERIOD 10      // Default for Detected IPs; blocked for 10 seconds
 #define DEFAULT_LOG_DIR		"/tmp"        // Default temp directory
-#define DEFAULT_HTTP_REPLY      HTTP_FORBIDDEN // Default HTTP Reply code (403)
+#define DEFAULT_HTTP_REPLY HTTP_TOO_MANY_REQUESTS //(429)  // HTTP_FORBIDDEN // Default HTTP Reply code (403)
 
 /* END DoS Evasive Maneuvers Definitions */
 
@@ -108,6 +112,8 @@ static unsigned long hash_table_size = DEFAULT_HASH_TBL_SIZE;
 
 typedef struct {
 	int enabled;
+  int silent_enabled;
+  int ignore_querystring_enabled;
 	char *context;
 	int page_count;
 	int page_interval;
@@ -137,6 +143,8 @@ static void * create_dir_conf(apr_pool_t *p, char *context)
 	evasive_config *cfg = apr_pcalloc(p, sizeof(evasive_config));
 	if (cfg) {
 		cfg->enabled = 1;
+    cfg->silent_enabled = 0;
+    cfg->ignore_querystring_enabled = 1;
 		cfg->context = strdup(context);
 		cfg->page_count = DEFAULT_PAGE_COUNT;
 		cfg->page_interval = DEFAULT_PAGE_INTERVAL;
@@ -151,17 +159,6 @@ static void * create_dir_conf(apr_pool_t *p, char *context)
 	return cfg;
 }
 
-static const char *whitelist(cmd_parms *cmd, void *dconfig, const char *ip)
-{
-	char entry[128];
-	// @TODO per-site whitelist
-	snprintf(entry, sizeof(entry), "W_%s", ip);
-	ntt_insert(hit_list, entry, time(NULL));
-
-	return NULL;
-}
-
-
 static int access_checker(request_rec *r)
 {
 	int ret = OK;
@@ -175,34 +172,44 @@ static int access_checker(request_rec *r)
 		time_t t = time(NULL);
 
 		/* Check whitelist */
-		if (is_whitelisted(r->useragent_ip, cfg))
+		if (is_whitelisted(r->useragent_ip, cfg)){
+		  ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,"UserAgent: %s is whitelisted, ignored by mod_evasive.",r->useragent_ip); 
 			return OK;
-
+    }
 		/* First see if the IP itself is on "hold" */
 		n = ntt_find(hit_list, r->useragent_ip);
 
 		if (n != NULL && t-n->timestamp<cfg->blocking_period) {
-
+      ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,"UserAgent: %s is on hold => wait longer in blocked land.",r->useragent_ip); 
 			/* If the IP is on "hold", make it wait longer in 403 land */
 			ret = cfg->http_reply;
 			n->timestamp = t;
 
 		/* Not on hold, check hit stats */
 		} else {
-
 			/* Has URI been hit too much? */
-			snprintf(hash_key, 2048, "%s_%s", r->useragent_ip, r->uri);
+      if(cfg->ignore_querystring_enabled){
+        const char *hostname;      
+        hostname = r->parsed_uri.hostname? r->parsed_uri.hostname:r->server->server_hostname;
+			  snprintf(hash_key, 2048, "%s_%s:%s%s", r->useragent_ip, hostname,r->parsed_uri.port_str,r->parsed_uri.path);
+      }else{
+        snprintf(hash_key, 2048, "%s_%s", r->useragent_ip, r->unparsed_uri);
+      }
+      ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,"Page URI hashKey: %s, originalUri: %s",hash_key,r->unparsed_uri); 
+
 			n = ntt_find(hit_list, hash_key);
 			if (n != NULL) {
-
 				/* If URI is being hit too much, add to "hold" list and 403 */
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,"PageHitStats: hashKey:%s, interval %ld, count:%ld ",hash_key,(t-n->timestamp),n->count); 
 				if (t-n->timestamp<cfg->page_interval && n->count>=cfg->page_count) {
+          ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,"PageHit Limit Exceeded: hashKey:%s, req_interval: %ld < cfg_page_interval:%d, count: %ld >= limit:%d ",hash_key,t-n->timestamp,cfg->page_interval,n->count,cfg->page_count); 
 					ret = cfg->http_reply;
-					ntt_insert(hit_list, r->useragent_ip, t);
+					ntt_insert(hit_list,  r->useragent_ip, t);
 				} else {
 
 					/* Reset our hit count list as necessary */
 					if (t-n->timestamp>=cfg->page_interval) {
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,"Reset PageHit by cfg_page_interval: hashKey:%s",hash_key); 
 						n->count=0;
 						n->timestamp=t;
 					}
@@ -211,22 +218,26 @@ static int access_checker(request_rec *r)
 				 * becomes equivalent to 20 requests in 3 seconds */
 				n->count++;
 			} else {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,"Insert new Page for monitoring PageHits: hashKey:%s",hash_key); 
 				ntt_insert(hit_list, hash_key, t);
 			}
 
 			/* Has site been hit too much? */
 			snprintf(hash_key, 2048, "%s_S", r->useragent_ip);
+      ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,"Site hashKey: %s",hash_key); 
 			n = ntt_find(hit_list, hash_key);
 			if (n != NULL) {
 
 				/* If site is being hit too much, add to "hold" list and 403 */
 				if (t-n->timestamp<cfg->site_interval && n->count>=cfg->site_count) {
+          ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,"Site Limit Exceeded: hashKey:%s, req_interval: %ld < cfg_site_interval:%d, count:%ld >= cfg_site_count:%d",hash_key,t-n->timestamp,cfg->site_interval,n->count,cfg->site_count); 
 					ret = cfg->http_reply;
 					ntt_insert(hit_list, r->useragent_ip, t);
 				} else {
 
 					/* Reset our hit count list as necessary */
 					if (t-n->timestamp>=cfg->site_interval) {
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,"Reset SiteHit by cfg_site_interval: hashKey:%s",hash_key); 
 						n->count=0;
 						n->timestamp=t;
 					}
@@ -235,6 +246,7 @@ static int access_checker(request_rec *r)
 				 * is the same as 20 req in 3 seconds */
 				n->count++;
 			} else {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,"Insert new Site for monitoring PageHits: hashKey:%s",hash_key); 
 				ntt_insert(hit_list, hash_key, t);
 			}
 		}
@@ -273,6 +285,7 @@ static int access_checker(request_rec *r)
 
 				} else {
 					LOG(LOG_ALERT, "Couldn't open logfile %s: %s",filename, strerror(errno));
+          ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,"Couldn't open logfile %s: %s",filename, strerror(errno)); 
 				}
 
 			} /* if (temp file does not exist) */
@@ -285,9 +298,12 @@ static int access_checker(request_rec *r)
 
 	if (ret == cfg->http_reply
 		&& (ap_satisfies(r) != SATISFY_ANY || !ap_some_auth_required(r))) {
-			ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-				"client denied by server configuration: %s",
-				r->filename);
+			ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,"Client: %s denied by server configuration: %s",r->useragent_ip,r->filename);
+	}
+
+  if(cfg->silent_enabled){
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,"Silent mode enabled by server configuration, possible DOS request from client:%s to page:%s will be ignored(not blocked).",r->useragent_ip,r->filename);
+    ret = OK;
 	}
 
 	return ret;
@@ -585,6 +601,15 @@ static struct ntt_node *c_ntt_next(struct ntt *ntt, struct ntt_c *c) {
 
 
 /* BEGIN Configuration Functions */
+static const char *whitelist(cmd_parms *cmd, void *dconfig, const char *ip)
+{
+	char entry[128];
+	// @TODO per-site whitelist
+	snprintf(entry, sizeof(entry), "W_%s", ip);
+	ntt_insert(hit_list, entry, time(NULL));
+  ap_log_error(APLOG_MARK,APLOG_MODULE_INDEX,APLOG_INFO, 0,"Whitelist configuration: %s ",ip); 
+	return NULL;
+}
 
 static const char *
 get_hash_tbl_size(cmd_parms *cmd, void *dconfig, const char *value) {
@@ -595,27 +620,44 @@ get_hash_tbl_size(cmd_parms *cmd, void *dconfig, const char *value) {
 	} else  {
 		hash_table_size = n;
 	}
-
+ap_log_error(APLOG_MARK,APLOG_MODULE_INDEX,APLOG_INFO, 0,"HashTable size configuration: %ld",hash_table_size); 
 	return NULL;
 }
 
 static const char *
 get_enabled(cmd_parms *cmd, void *dconfig, const char *value) {
-    evasive_config *cfg = (evasive_config *) dconfig;
+    evasive_config *cfg = (evasive_config *) dconfig;    
     cfg->enabled = (!strcmp("off", value)  || !strcmp("false", value)) ? 0 : 1;
+    ap_log_error(APLOG_MARK,APLOG_MODULE_INDEX,APLOG_INFO, 0,"Enabled configuration: %d",cfg->enabled); 
+    return NULL;
+}
+
+static const char *
+get_silent_enabled(cmd_parms *cmd, void *dconfig, const char *value) {
+    evasive_config *cfg = (evasive_config *) dconfig;    
+    cfg->silent_enabled = (!strcmp("off", value)  || !strcmp("false", value)) ? 0 : 1;
+    ap_log_error(APLOG_MARK,APLOG_MODULE_INDEX,APLOG_INFO, 0,"SilentMode configuration: %d",cfg->silent_enabled); 
+    return NULL;
+}
+
+static const char *
+get_ignore_querystring_enabled(cmd_parms *cmd, void *dconfig, const char *value) {
+    evasive_config *cfg = (evasive_config *) dconfig;    
+    cfg->ignore_querystring_enabled = (!strcmp("off", value)  || !strcmp("false", value)) ? 0 : 1;
+    ap_log_error(APLOG_MARK,APLOG_MODULE_INDEX,APLOG_INFO, 0,"IgnoreQueryString configuration: %d",cfg->ignore_querystring_enabled); 
     return NULL;
 }
 
 static const char *
 get_page_count(cmd_parms *cmd, void *dconfig, const char *value) {
     evasive_config *cfg = (evasive_config *) dconfig;
-    long n = strtol(value, NULL, 0);
+    long n = strtol(value, NULL, 0);    
     if (n<=0) {
         cfg->page_count = DEFAULT_PAGE_COUNT;
     } else {
         cfg->page_count = n;
     }
-
+    ap_log_error(APLOG_MARK,APLOG_MODULE_INDEX,APLOG_INFO, 0,"Page-count configuration: %d ",cfg->page_count); 
     return NULL;
 }
 
@@ -628,7 +670,7 @@ get_site_count(cmd_parms *cmd, void *dconfig, const char *value) {
     } else {
         cfg->site_count = n;
     }
-
+    ap_log_error(APLOG_MARK,APLOG_MODULE_INDEX,APLOG_INFO, 0,"Site-count configuration: %d ",cfg->site_count); 
     return NULL;
 }
 
@@ -641,20 +683,20 @@ get_page_interval(cmd_parms *cmd, void *dconfig, const char *value) {
     } else {
         cfg->page_interval = n;
     }
-
+    ap_log_error(APLOG_MARK,APLOG_MODULE_INDEX,APLOG_INFO, 0,"Page-interval configuration: %d ",cfg->page_interval); 
     return NULL;
 }
 
 static const char *
 get_site_interval(cmd_parms *cmd, void *dconfig, const char *value) {
     evasive_config *cfg = (evasive_config *) dconfig;
-    long n = strtol(value, NULL, 0);
+    long n = strtol(value, NULL, 0);    
     if (n<=0) {
         cfg->site_interval = DEFAULT_SITE_INTERVAL;
     } else {
         cfg->site_interval = n;
     }
-
+    ap_log_error(APLOG_MARK,APLOG_MODULE_INDEX,APLOG_INFO, 0,"Site-interval configuration: %d ",cfg->site_interval); 
     return NULL;
 }
 
@@ -667,7 +709,7 @@ get_blocking_period(cmd_parms *cmd, void *dconfig, const char *value) {
     } else {
         cfg->blocking_period = n;
     }
-
+    ap_log_error(APLOG_MARK,APLOG_MODULE_INDEX,APLOG_INFO, 0,"Blocking period configuration: %d ",cfg->blocking_period); 
     return NULL;
 }
 
@@ -679,7 +721,7 @@ get_log_dir(cmd_parms *cmd, void *dconfig, const char *value) {
             free(cfg->log_dir);
         cfg->log_dir = strdup(value);
     }
-
+    ap_log_error(APLOG_MARK,APLOG_MODULE_INDEX,APLOG_INFO, 0,"Log dir configuration: %s ",cfg->log_dir); 
     return NULL;
 }
 
@@ -691,7 +733,7 @@ get_email_notify(cmd_parms *cmd, void *dconfig, const char *value) {
             free(cfg->email_notify);
         cfg->email_notify = strdup(value);
     }
-
+    ap_log_error(APLOG_MARK,APLOG_MODULE_INDEX,APLOG_INFO, 0,"Email notify configuration: %s ",cfg->email_notify); 
     return NULL;
 }
 
@@ -703,7 +745,7 @@ get_system_command(cmd_parms *cmd, void *dconfig, const char *value) {
             free(cfg->system_command);
         cfg->system_command = strdup(value);
     }
-
+    ap_log_error(APLOG_MARK,APLOG_MODULE_INDEX,APLOG_INFO, 0,"System command configuration: %s ",cfg->system_command ); 
     return NULL;
 }
 
@@ -716,7 +758,7 @@ get_http_reply(cmd_parms *cmd, void *dconfig, const char *value) {
     } else {
         cfg->http_reply = reply;
     }
-
+    ap_log_error(APLOG_MARK,APLOG_MODULE_INDEX,APLOG_INFO, 0,"HttpReply configuration: %d ",cfg->http_reply); 
     return NULL;
 }
 
@@ -725,40 +767,46 @@ get_http_reply(cmd_parms *cmd, void *dconfig, const char *value) {
 static const command_rec access_cmds[] =
 {
     AP_INIT_TAKE1("DOSEnabled", get_enabled, NULL, ACCESS_CONF|RSRC_CONF,
-    	"Toggle mod_evasive within global/virtualhost/directory. Default on"),
+    	"Toggle mod_evasive within global/virtualhost/directory. Default on."),
+
+    AP_INIT_TAKE1("DOSSilent", get_silent_enabled, NULL, ACCESS_CONF|RSRC_CONF,
+    	"Enables silent mode. Value on - when limits exceeded request is logged and processed, off - when limits exceeded configured HTTPStatus is thrown and request processing is blocked. Default off."),
+    
+    AP_INIT_TAKE1("DOSIgnoreQueryString", get_ignore_querystring_enabled, NULL, ACCESS_CONF|RSRC_CONF,
+    	"Determines if query string in requested URI should be ignored. Value on - query string ignored, off - use full URI with query string. Default on."),
 
     AP_INIT_TAKE1("DOSHashTableSize", get_hash_tbl_size, NULL, RSRC_CONF,
-    	"Set size of hash table"),
+    	"Set size of hash table."),
 
     AP_INIT_TAKE1("DOSPageCount", get_page_count, NULL, ACCESS_CONF|RSRC_CONF,
-        "Set maximum page hit count per interval"),
+        "Set maximum page hit count per interval."),
 
     AP_INIT_TAKE1("DOSSiteCount", get_site_count, NULL, ACCESS_CONF|RSRC_CONF,
-        "Set maximum site hit count per interval"),
+        "Set maximum site hit count per interval."),
 
     AP_INIT_TAKE1("DOSPageInterval", get_page_interval, NULL, ACCESS_CONF|RSRC_CONF,
-		"Set page interval"),
+		"Set page interval."),
 
     AP_INIT_TAKE1("DOSSiteInterval", get_site_interval, NULL, ACCESS_CONF|RSRC_CONF,
-        "Set site interval"),
+        "Set site interval."),
 
     AP_INIT_TAKE1("DOSBlockingPeriod", get_blocking_period, NULL, ACCESS_CONF|RSRC_CONF,
-        "Set blocking period for detected DoS IPs"),
+        "Set blocking period for detected DoS IPs."),
 
     AP_INIT_TAKE1("DOSEmailNotify", get_email_notify, NULL, ACCESS_CONF|RSRC_CONF,
-        "Set email notification"),
+        "Set email notification."),
 
     AP_INIT_TAKE1("DOSLogDir", get_log_dir, NULL, ACCESS_CONF|RSRC_CONF,
-        "Set log dir"),
+        "Set log dir."),
 
     AP_INIT_TAKE1("DOSSystemCommand", get_system_command, NULL, ACCESS_CONF|RSRC_CONF,
-        "Set system command on DoS"),
+        "Set system command on DoS."),
 
     AP_INIT_ITERATE("DOSWhitelist", whitelist, NULL, RSRC_CONF,
-        "IP-addresses wildcards to whitelist"),
+        "IP-addresses wildcards to whitelist."),
 
-    AP_INIT_ITERATE("DOSHTTPStatus", get_http_reply, NULL, ACCESS_CONF|RSRC_CONF,
-        "HTTP reply code"),
+    AP_INIT_TAKE1("DOSHTTPStatus", get_http_reply, NULL, ACCESS_CONF|RSRC_CONF,
+        "HTTP reply code."),
 
     { NULL }
 };

@@ -1,0 +1,48 @@
+#FROM centos/httpd-24-centos7
+
+FROM centos:7.5.1804
+
+MAINTAINER Keklabs <keklabs@gmail.com>
+
+LABEL Vendor="keklabs" \
+  License=GPLv2 \
+  Version=0.9.0
+
+#https://stackoverflow.com/questions/38133849/cant-use-yum-inside-docker-container-running-on-centos	  
+USER root
+
+#RUN yum -y --setopt=tsflags=nodocs update && \
+# yum -y --setopt=tsflags=nodocs  install centos-release-scl-rh && \
+# yum -y --setopt=tsflags=nodocs install --enablerepo=extras epel-release && \
+
+# RUN yum -y --setopt=tsflags=nodocs  install centos-release-scl-rh && \ 
+#   yum -y --setopt=tsflags=nodocs install httpd24 && \
+#   yum -y --setopt=tsflags=nodocs install mc && \
+#   yum clean all
+
+RUN yum -y --setopt=tsflags=nodocs install httpd-devel && \
+  yum -y --setopt=tsflags=nodocs install mc && \
+  yum -y --setopt=tsflags=nodocs install rpm-build && \
+  yum -y --setopt=tsflags=nodocs install gcc && \
+  yum clean all
+
+COPY ./centos/mod_evasive-rpm /tmp/mod_evasive-rpm
+COPY ./mod_evasive/ /tmp/mod_evasive-rpm/SOURCES/
+
+RUN cd /tmp/mod_evasive-rpm && \
+  ./build.sh && \
+  yum -y --setopt=tsflags=nodocs localinstall ./RPMS/x86_64/mod_evasive*.rpm
+
+COPY ./centos/etc/httpd/conf/httpd.conf /etc/httpd/conf/httpd.conf
+COPY ./centos/etc/httpd/conf.modules.d/00-mpm.conf /etc/httpd/conf.modules.d/00-mpm.conf
+#COPY ./mod_evasive/evasive.conf /etc/httpd/conf.modules.d/00-evasive.conf
+COPY ./test/web /var/www/html
+
+EXPOSE 80
+EXPOSE 443
+
+# Simple startup script to avoid some issues observed with container restart
+ADD centos/run-httpd.sh /opt/mod_evasive/run-httpd.sh
+RUN chmod -v +x /opt/mod_evasive/run-httpd.sh
+
+CMD ["/opt/mod_evasive/run-httpd.sh"]

@@ -1,7 +1,9 @@
 mod_evasive
 ===========
+This version of mod_evasive is managed by ([keklabs/mod_evasive](https://github.com/keklabs/mod_evasive)): keklabs@google.com.
 
-Fork of mod_evasive for Apache 2.x. Original module by Deep Logic, Inc.
+It was forked from ([apisnetworks/mod_evasive](https://github.com/apisnetworks/mod_evasive)), 
+originating as fork of mod_evasive for Apache 2.x. Original module by Deep Logic, Inc.
 
 ## WHAT IS MOD_EVASIVE ?
 
@@ -153,14 +155,22 @@ In `/etc/httpd/conf.d/evasive.conf`,
 ```
 LoadModule evasive_module modules/mod_evasive.so
 
-<IfModule mod_evasive.c>
-    DOSHttpStatus 429
-    DOSHashTableSize    3097
-    DOSPageCount        2
-    DOSSiteCount        50
-    DOSPageInterval     1
-    DOSSiteInterval     1
-    DOSBlockingPeriod   10
+<IfModule evasive_module>
+  LogLevel info evasive:info
+  DOSEnabled on
+  DOSSilent off
+  DOSIgnoreQueryString on
+  DOSHashTableSize 10000
+  DOSPageCount 50
+  DOSPageInterval 10
+  DOSSiteCount 10000
+  DOSSiteInterval 10
+  DOSBlockingPeriod 10
+ # DOSEmailNotify admin@example.com>
+ # DOSSystemCommand	"echo %s"
+  DOSLogDir		"/tmp"
+  DOSHTTPStatus 429
+  DOSWhiteList        127.0.0.1
 </IfModule>
 ```
 
@@ -172,7 +182,7 @@ evasive can be used configured per-directory, per-virtualhost, and per-location
 
 <Directory /var/www/html/secret>
 	DOSEnabled on
-	DOSHTTPStatus 401
+	DOSHTTPStatus 429
 	DOSPageCount 40
 </Directory>
 
@@ -309,6 +319,26 @@ DOSWhitelist commands may be used in the configuration.
 HTTP status code to send with blocked requests. Defaults to `403` (Forbidden).
 `429` is a more friendly value (Too Many Requests).
 
+#### DOSSilent off/on  (default off)
+**Since**: 3.0
+
+**Context**: server config, virtualhost, directory
+
+Determines if query string in requested URI should be ignored.
+on - query string ignored
+off - use full URI with query string.
+Default on.
+
+#### DOSIgnoreQueryString on/off  (default on)
+**Since**: 3.0
+
+**Context**: server config, virtualhost, directory
+
+Enables silent mode.
+on - when limits exceeded request is logged and processed
+off - when limits exceeded configured HTTPStatus is thrown and request processing is blocked.
+Default off.
+
 ## TWEAKING APACHE
 
 The keep-alive settings for your children should be reasonable enough to
@@ -337,6 +367,11 @@ addresses.
 
 Please don't use this script to DoS others without their permission.
 
+OR 
+
+ use Apache JMeter (1.5) https://jmeter.apache.org/
+ and /test/jmeter5/evasive-test-jmeter5.0.jmx  project script.
+
 ## KNOWN BUGS
 
 - Whitelists cannot be merged per virtualhost/directory
@@ -346,8 +381,12 @@ Please don't use this script to DoS others without their permission.
 
 Please feel free to fork and fix issues or open new ones.
 
-Original author ([jzdziarski/mod_evasive](https://github.com/jzdziarski/mod_evasive)): jonathan@nuclearelephant.com
+Modified package ([keklabs/mod_evasive](https://github.com/keklabs/mod_evasive)): keklabs(at)google.com
 
-Modified package ([apisnetworks/mod_evasive](https://github.com/apisnetworks/mod_evasive)): matt@apisnetworks.com
+Original authors:
+ ([jzdziarski/mod_evasive](https://github.com/jzdziarski/mod_evasive)): jonathan@nuclearelephant.com
+
+ Modified package ([apisnetworks/mod_evasive](https://github.com/apisnetworks/mod_evasive)): matt@apisnetworks.com
+
 
 

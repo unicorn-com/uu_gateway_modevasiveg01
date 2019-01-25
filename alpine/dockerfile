@@ -1,0 +1,28 @@
+FROM httpd:2.4.34-alpine
+
+MAINTAINER keklabs <keklabs@gmail.com>
+
+LABEL Vendor="keklabs" \
+  License=GNU \
+  Version=0.9.0
+
+RUN apk update && \
+  apk add wget && \
+  apk add apache2-dev && \
+  apk add apache2-utils && \
+  apk add gcc musl-dev && \
+  apk add mc
+
+# build from GIT repository
+#RUN cd /tmp/ && \
+#  wget https://github.com/keklabs/mod_evasive/archive/master.zip && \
+#  unzip ignore-querystring.zip && \
+#  cd mod_evasive-feature-ignore-querystring/SOURCES && \
+#  apxs -i -a -c -Wc,"-Wall -pedantic -std=c99" mod_evasive.c
+
+COPY mod_evasive /tmp/mod_evasive
+RUN cd /tmp/mod_evasive && \
+  apxs -i -a -c -Wc,"-Wall -pedantic -std=c99" mod_evasive.c
+
+COPY test/web/ /usr/local/apache2/htdocs/	
+COPY conf/httpd.conf /usr/local/apache2/conf/httpd.conf

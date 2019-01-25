@@ -1,3 +1,23 @@
+Version 3.0
+--------------
+[20190125] keklabs: SilentMode -  new option to only log DOS client without blocking
+
+[20190125] keklabs: IgnoreQueryString - new option to ignore query string in page-hit URI
+
+[20190125] keklabs: Logging to Apache error logs
+
+[20190125] keklabs: HTTP-429 Too many requests as default status
+
+[20190125] keklabs: Dependency on fail2ban is now optional, use rpmbuild -ba mod_evasive.spec --with fail2ban to build RPM with fail2ban support
+
+[20190125] keklabs: Move evasive.conf to /etc/httpd/conf.modules.d configuration directory for centos
+
+[20190125] keklabs: added testing script for Apache-Jmeter 5.0
+
+[20190125] keklabs: added dockerfile for Alpine linux testing
+
+[20190125] keklabs: added dockerfile for CentOS linux RPM build and testing
+
 Version 2.1
 --------------
 [20181202] msaladna: Merge custom HTTP status, per-virtualhost patch from jvdmr/mod_evasive
