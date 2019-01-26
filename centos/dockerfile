@@ -28,6 +28,9 @@ RUN yum -y --setopt=tsflags=nodocs install httpd-devel && \
 
 COPY ./centos/mod_evasive-rpm /tmp/mod_evasive-rpm
 COPY ./mod_evasive/ /tmp/mod_evasive-rpm/SOURCES/
+COPY ./LICENSE /tmp/mod_evasive-rpm/SOURCES/LICENSE
+COPY ./CHANGELOG /tmp/mod_evasive-rpm/SOURCES/CHANGELOG
+COPY ./README.md /tmp/mod_evasive-rpm/SOURCES/README.md
 
 RUN cd /tmp/mod_evasive-rpm && \
   ./build.sh && \
@@ -42,7 +45,7 @@ EXPOSE 80
 EXPOSE 443
 
 # Simple startup script to avoid some issues observed with container restart
-ADD centos/run-httpd.sh /opt/mod_evasive/run-httpd.sh
+ADD ./centos/bin/run-httpd.sh /opt/mod_evasive/run-httpd.sh
 RUN chmod -v +x /opt/mod_evasive/run-httpd.sh
 
 CMD ["/opt/mod_evasive/run-httpd.sh"]
