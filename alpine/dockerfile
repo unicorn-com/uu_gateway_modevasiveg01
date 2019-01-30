@@ -25,4 +25,4 @@ RUN cd /tmp/mod_evasive && \
   apxs -i -a -c -Wc,"-Wall -pedantic -std=c99" mod_evasive.c
 
 COPY test/web/ /usr/local/apache2/htdocs/	
-COPY conf/httpd.conf /usr/local/apache2/conf/httpd.conf
+COPY alpine/conf/httpd.conf /usr/local/apache2/conf/httpd.conf

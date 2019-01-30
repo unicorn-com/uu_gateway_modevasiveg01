@@ -33,8 +33,9 @@ COPY ./CHANGELOG /tmp/mod_evasive-rpm/SOURCES/CHANGELOG
 COPY ./README.md /tmp/mod_evasive-rpm/SOURCES/README.md
 
 RUN cd /tmp/mod_evasive-rpm && \
-  ./build.sh && \
-  yum -y --setopt=tsflags=nodocs localinstall ./RPMS/x86_64/mod_evasive*.rpm
+    chmod -v +x build.sh && \
+    ./build.sh && \
+    yum -y --setopt=tsflags=nodocs localinstall ./RPMS/x86_64/mod_evasive*.rpm
 
 COPY ./centos/etc/httpd/conf/httpd.conf /etc/httpd/conf/httpd.conf
 COPY ./centos/etc/httpd/conf.modules.d/00-mpm.conf /etc/httpd/conf.modules.d/00-mpm.conf
