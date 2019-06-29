@@ -1,13 +1,17 @@
 mod_evasive
 ===========
-This version of mod_evasive is managed by ([keklabs/mod_evasive](https://github.com/keklabs/mod_evasive)): keklabs@google.com.
+This version of mod_evasive is managed by ([unicorn-com/uu_gateway_modevasiveg01](https://github.com/unicorn-com/uu_gateway_modevasiveg01)).
 
-It was forked from ([apisnetworks/mod_evasive](https://github.com/apisnetworks/mod_evasive)), 
+It was forked from ([keklabs/mod_evasive](https://github.com/keklabs/mod_evasive)),
+which was derived from ([apisnetworks/mod_evasive](https://github.com/apisnetworks/mod_evasive)),
 originating as fork of mod_evasive for Apache 2.x. Original module by Deep Logic, Inc.
 
 ## changelog
+** Sat Jun 29 2019 KekLabs <keklabs@gmail.com> - 3.0.1 **
+ - next development of this module will be managed by ([unicorn-com/uu_gateway_modevasiveg01](https://github.com/unicorn-com/uu_gateway_modevasiveg01)) open-source repositories.
 
-** Fri Jan 25 2019 KekLabs <keklabs@gmail.com> - 3.0-0 **
+** Fri Jan 25 2019 KekLabs <keklabs@gmail.com> - 3.0.0 **
+- developed at ([keklabs/mod_evasive](https://github.com/keklabs/mod_evasive))
 - Forked from https://github.com/apisnetworks/mod_evasive
 - SilentMode -  new option to only log DOS client without blocking
 - IgnoreQueryString - new option to ignore query string in page-hit URI
@@ -210,6 +214,12 @@ evasive can be used configured per-directory, per-virtualhost, and per-location
 <Location /images/emoji>
 	DOSEnabled off
 </Location>
+
+# Alternatively disable mod_evasive for all static files
+<FilesMatch "\.(?:png|jpg|svg|js|css)$">
+	DOSEnabled off
+</FilesMatch>
+
 ```
 
 ### mod_evasive Directives
@@ -395,12 +405,8 @@ OR
 
 Please feel free to fork and fix issues or open new ones.
 
-Modified package ([keklabs/mod_evasive](https://github.com/keklabs/mod_evasive)): keklabs(at)google.com
-
+Modified package:
+ ([keklabs/mod_evasive](https://github.com/keklabs/mod_evasive)): keklabs@google.com
+ ([apisnetworks/mod_evasive](https://github.com/apisnetworks/mod_evasive)): matt@apisnetworks.com
 Original authors:
  ([jzdziarski/mod_evasive](https://github.com/jzdziarski/mod_evasive)): jonathan@nuclearelephant.com
-
- Modified package ([apisnetworks/mod_evasive](https://github.com/apisnetworks/mod_evasive)): matt@apisnetworks.com
-
-
-
